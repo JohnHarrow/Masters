@@ -1,0 +1,6 @@
+student_id,student_name,choice_1,choice_2,choice_3,note
+s001,Alice,p001,p003,p002,
+s002,Bob,p003,p001,p005,
+s003,Charlie,p005,p002,p004,"Discussed own project with Supervisor Z"
+s004,Dina,p001,p002,p003,
+s005,Eli,p004,p003,p002,
