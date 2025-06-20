@@ -1,21 +1,21 @@
-project_id,project_title,supervisor_id,supervisor_name
-P201,AI Chatbot for Student Services,SUP01,Dr. Alice Green
-P202,Blockchain Voting System,SUP01,Dr. Alice Green
-P203,Data Visualization Dashboard,SUP02,Dr. Ben Smith
-P204,Smart Home IoT System,SUP02,Dr. Ben Smith
-P205,Automated Essay Grader,SUP03,Prof. Carol Chen
-P206,Cybersecurity Threat Monitor,SUP03,Prof. Carol Chen
-P207,Online Learning Analytics Tool,SUP04,Dr. Daniel Lee
-P208,Healthcare Data Analysis,SUP04,Dr. Daniel Lee
-P209,Drone Delivery Optimizer,SUP05,Prof. Emma Patel
-P210,Climate Change Modeling,SUP05,Prof. Emma Patel
-P211,Virtual Reality Learning App,SUP06,Dr. Faisal Khan
-P212,Mobile Expense Tracker,SUP06,Dr. Faisal Khan
-P213,Game Recommendation Engine,SUP07,Prof. George Hall
-P214,E-Commerce Fraud Detection,SUP07,Prof. George Hall
-P215,Quantum Circuit Simulator,SUP08,Dr. Hannah O'Neil
-P216,Edge Computing for Vehicles,SUP08,Dr. Hannah O'Neil
-P217,Personal Finance Assistant,SUP09,Dr. Ian Russell
-P218,Social Media Sentiment Miner,SUP09,Dr. Ian Russell
-P219,Digital Twin for Buildings,SUP10,Dr. Jane Cooper
-P220,Augmented Reality for Retail,SUP10,Dr. Jane Cooper
+project_id,project_title,supervisor_id,supervisor_name,max_students
+P201,AI Chatbot for Student Services,SUP01,Dr. Alice Green,2
+P202,Blockchain Voting System,SUP01,Dr. Alice Green,
+P203,Data Visualization Dashboard,SUP02,Dr. Ben Smith,3
+P204,Smart Home IoT System,SUP02,Dr. Ben Smith,
+P205,Automated Essay Grader,SUP03,Prof. Carol Chen,1
+P206,Cybersecurity Threat Monitor,SUP03,Prof. Carol Chen,
+P207,Online Learning Analytics Tool,SUP04,Dr. Daniel Lee,
+P208,Healthcare Data Analysis,SUP04,Dr. Daniel Lee,
+P209,Drone Delivery Optimizer,SUP05,Prof. Emma Patel,2
+P210,Climate Change Modeling,SUP05,Prof. Emma Patel,
+P211,Virtual Reality Learning App,SUP06,Dr. Faisal Khan,
+P212,Mobile Expense Tracker,SUP06,Dr. Faisal Khan,
+P213,Game Recommendation Engine,SUP07,Prof. George Hall,3
+P214,E-Commerce Fraud Detection,SUP07,Prof. George Hall,
+P215,Quantum Circuit Simulator,SUP08,Dr. Hannah O'Neil,2
+P216,Edge Computing for Vehicles,SUP08,Dr. Hannah O'Neil,
+P217,Personal Finance Assistant,SUP09,Dr. Ian Russell,
+P218,Social Media Sentiment Miner,SUP09,Dr. Ian Russell,
+P219,Digital Twin for Buildings,SUP10,Dr. Jane Cooper,1
+P220,Augmented Reality for Retail,SUP10,Dr. Jane Cooper,

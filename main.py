@@ -4,91 +4,132 @@ import pandas as pd
 students_df = pd.read_csv("students.csv")
 projects_df = pd.read_csv("projects.csv")
 preallocated_df = pd.read_csv("preallocated.csv")
+supervisors_df = pd.read_csv("supervisors.csv")  # supervisor_id, supervisor_name, capacity
 
-# --- Define supervisor capacity (assume each can supervise up to 5 students) ---
-supervisor_capacity = {sup_id: 5 for sup_id in projects_df['supervisor_id'].unique()}
-
-# --- Validate student preferences ---
-def validate_students(df, projects_df):
-    valid_project_ids = set(projects_df['project_id'])
+# --- Validate student data structure and content ---
+def validate_student_data(students_df, projects_df):
     errors = []
+    required_fields = ['student_id', 'student_name', 'choice_1', 'choice_2', 'choice_3']
+    missing_fields = [field for field in required_fields if field not in students_df.columns]
+    if missing_fields:
+        errors.append(f"Missing required columns: {missing_fields}")
 
-    for _, row in df.iterrows():
+    if students_df[required_fields].isnull().any().any():
+        null_rows = students_df[required_fields].isnull().any(axis=1)
+        null_ids = students_df[null_rows]['student_id'].tolist()
+        errors.append(f"Missing data in required fields for student_ids: {null_ids}")
+
+    if students_df['student_id'].duplicated().any():
+        dup_ids = students_df[students_df['student_id'].duplicated()]['student_id'].tolist()
+        errors.append(f"Duplicate student IDs found: {dup_ids}")
+
+    valid_project_ids = set(projects_df['project_id'])
+    for _, row in students_df.iterrows():
+        sid = row['student_id']
+        for col in ['choice_1', 'choice_2', 'choice_3']:
+            if row[col] not in valid_project_ids:
+                errors.append(f"Student {sid}: Invalid project ID '{row[col]}' in {col}")
+
+    for _, row in students_df.iterrows():
+        sid = row['student_id']
         choices = [row['choice_1'], row['choice_2'], row['choice_3']]
-
-        # 1. Check for duplicate choices
         if len(set(choices)) < 3:
-            errors.append((row['student_id'], "Duplicate choices"))
+            errors.append(f"Student {sid}: Duplicate project choices detected.")
 
-        # 2. Check for invalid project IDs
-        for choice in choices:
-            if choice not in valid_project_ids:
-                errors.append((row['student_id'], f"Invalid project ID: {choice}"))
+    if errors:
+        print("❌ STUDENT DATA VALIDATION ERRORS:")
+        for err in errors:
+            print(" -", err)
+        raise ValueError("Student data validation failed.")
+    else:
+        print("✅ Student data validation passed.")
 
-        # 3. Check if all choices are with different supervisors
+# --- Optional diversity check (warning only) ---
+def validate_supervisor_diversity(students_df, projects_df):
+    warnings = []
+    for _, row in students_df.iterrows():
+        choices = [row['choice_1'], row['choice_2'], row['choice_3']]
         sup_ids = []
         for c in choices:
-            project_row = projects_df[projects_df['project_id'] == c]
-            if not project_row.empty:
-                sup_id = project_row['supervisor_id'].values[0]
-                sup_ids.append(sup_id)
+            pr = projects_df[projects_df['project_id'] == c]
+            if not pr.empty:
+                sup_ids.append(pr['supervisor_id'].values[0])
         if len(set(sup_ids)) < 3:
-            errors.append((row['student_id'], "Same supervisor in multiple choices"))
+            warnings.append(row['student_id'])
 
-    return errors
+    if warnings:
+        print("⚠️ SUPERVISOR DIVERSITY WARNINGS (not errors):")
+        print(" Students with multiple choices from same supervisor:", warnings)
+    else:
+        print("✅ Supervisor diversity check passed.")
 
-validation_errors = validate_students(students_df, projects_df)
-print("Validation errors:", validation_errors)
+# --- Prepare supervisor capacities ---
+supervisor_capacity = {
+    row['supervisor_id']: int(row['capacity']) if pd.notna(row['capacity']) else 3
+    for _, row in supervisors_df.iterrows()
+}
 
-# --- Initialize allocation and supervisor load trackers ---
+# --- Prepare project capacities (NaN = unlimited within supervisor capacity) ---
+project_capacity = {}
+for _, row in projects_df.iterrows():
+    pid = row['project_id']
+    cap = row.get('max_students', None)
+    project_capacity[pid] = int(cap) if pd.notna(cap) else None  # None means no limit
+
+# --- Run validations ---
+validate_student_data(students_df, projects_df)
+validate_supervisor_diversity(students_df, projects_df)
+
+# --- Initialize tracking ---
 allocation = {}  # student_id -> project_id
 supervisor_load = {sup_id: 0 for sup_id in supervisor_capacity}
+project_load = {pid: 0 for pid in projects_df['project_id']}
 
-# --- Step 1: Preallocate fixed students ---
+# --- Preallocate ---
 for _, row in preallocated_df.iterrows():
-    student_id = row['student_id']
-    project_id = row['project_id']
-    sup_id = row['supervisor_id']
-    allocation[student_id] = project_id
-    supervisor_load[sup_id] += 1
+    sid = row['student_id']
+    pid = row['project_id']
+    sup = row['supervisor_id']
+    allocation[sid] = pid
+    supervisor_load[sup] += 1
+    project_load[pid] += 1
 
-# --- Step 2: Greedy allocation based on student choices ---
+# --- Greedy allocation ---
 for _, row in students_df.iterrows():
-    student_id = row['student_id']
-    if student_id in allocation:
-        continue  # Skip already preallocated students
+    sid = row['student_id']
+    if sid in allocation:
+        continue
 
     for choice in ['choice_1', 'choice_2', 'choice_3']:
-        project_id = row[choice]
-
-        # Skip if project does not exist (defensive check)
-        project_row = projects_df[projects_df['project_id'] == project_id]
+        pid = row[choice]
+        project_row = projects_df[projects_df['project_id'] == pid]
         if project_row.empty:
             continue
 
-        sup_id = project_row['supervisor_id'].values[0]
+        sup = project_row['supervisor_id'].values[0]
+        max_proj_cap = project_capacity[pid]
 
-        # Check supervisor capacity
-        if supervisor_load[sup_id] < supervisor_capacity[sup_id]:
-            allocation[student_id] = project_id
-            supervisor_load[sup_id] += 1
-            break  # Stop at the first successful assignment
+        if supervisor_load[sup] < supervisor_capacity[sup]:
+            if max_proj_cap is None or project_load[pid] < max_proj_cap:
+                allocation[sid] = pid
+                supervisor_load[sup] += 1
+                project_load[pid] += 1
+                break  # Assigned
 
-# --- Identify unassigned students ---
+# --- Report unassigned students ---
 unmatched = [sid for sid in students_df['student_id'] if sid not in allocation]
-print("Unmatched students:", unmatched)
+print(f"\n🔍 Unmatched students ({len(unmatched)}): {unmatched}")
 
-# --- Output results to CSV ---
+# --- Save results ---
 output = []
 for _, row in students_df.iterrows():
     sid = row['student_id']
-    assigned_project = allocation.get(sid, "UNASSIGNED")
+    assigned = allocation.get(sid, "UNASSIGNED")
     output.append({
         "student_id": sid,
         "student_name": row['student_name'],
-        "assigned_project": assigned_project
+        "assigned_project": assigned
     })
 
-output_df = pd.DataFrame(output)
-output_df.to_csv("allocation_result.csv", index=False)
-print("Allocation results saved to allocation_result.csv")
+pd.DataFrame(output).to_csv("allocation_result.csv", index=False)
+print("📄 Allocation results saved to allocation_result.csv")
