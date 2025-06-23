@@ -1,6 +1,7 @@
 import pandas as pd
 from collections import deque
 from pulp import LpProblem, LpVariable, LpMaximize, lpSum, LpBinary, PULP_CBC_CMD
+import numpy as np
 
 # --- Load data ---
 students_df = pd.read_csv("students.csv")
@@ -242,6 +243,65 @@ def save_allocation_result(allocation, students_df, filename):
     pd.DataFrame(output).to_csv(filename, index=False)
     print(f"📄 Results saved to {filename}")
 
+# --- New: Analyze match quality ---
+def analyze_match_quality(allocation, students_df, projects_df, supervisors_df, method_name="Method"):
+    print(f"\n📊 Analysis of match quality for {method_name}:")
+
+    # 1. Choice preference distribution
+    distribution = {'choice_1': 0, 'choice_2': 0, 'choice_3': 0, 'unmatched': 0, 'other': 0}
+    for _, row in students_df.iterrows():
+        sid = row['student_id']
+        assigned = allocation.get(sid, None)
+        if assigned is None:
+            distribution['unmatched'] += 1
+        elif assigned == row['choice_1']:
+            distribution['choice_1'] += 1
+        elif assigned == row['choice_2']:
+            distribution['choice_2'] += 1
+        elif assigned == row['choice_3']:
+            distribution['choice_3'] += 1
+        else:
+            distribution['other'] += 1  # likely preallocated or forced assignments
+
+    print("Choice preference distribution:")
+    for choice, count in distribution.items():
+        print(f"  {choice}: {count}")
+
+    # 2. Supervisor load distribution
+    proj_to_sup = projects_df.set_index('project_id')['supervisor_id'].to_dict()
+    supervisor_load = {sup: 0 for sup in supervisors_df['supervisor_id']}
+    for sid, pid in allocation.items():
+        sup = proj_to_sup.get(pid)
+        if sup is not None:
+            supervisor_load[sup] += 1
+
+    loads = np.array(list(supervisor_load.values()))
+    print("\nSupervisor load distribution:")
+    print(f"  Min load: {loads.min()}")
+    print(f"  Max load: {loads.max()}")
+    print(f"  Mean load: {loads.mean():.2f}")
+    print(f"  Std dev load: {loads.std():.2f}")
+
+    # 3. Students assigned outside their choices
+    outside = []
+    for _, row in students_df.iterrows():
+        sid = row['student_id']
+        assigned = allocation.get(sid, None)
+        if assigned is not None and assigned not in [row['choice_1'], row['choice_2'], row['choice_3']]:
+            outside.append(sid)
+    print(f"\nStudents assigned outside their choices: {len(outside)}")
+    if outside:
+        print("  Student IDs:", outside)
+
+    # 4. Project utilization
+    usage = {pid: 0 for pid in projects_df['project_id']}
+    for pid in allocation.values():
+        usage[pid] = usage.get(pid, 0) + 1
+
+    print("\nProject utilization (project_id: number assigned):")
+    for pid, count in usage.items():
+        print(f"  {pid}: {count}")
+
 # --- Run all matching algorithms ---
 allocation_greedy = greedy_matching(
     students_df, projects_df, supervisor_capacity, project_capacity, preallocated_df
@@ -266,3 +326,8 @@ unmatched_lp = [sid for sid in students_df['student_id'] if sid not in allocatio
 print(f"\n🔁 Greedy unmatched students: {len(unmatched_greedy)}")
 print(f"💍 Stable unmatched students: {len(unmatched_stable)}")
 print(f"🧮 LP unmatched students: {len(unmatched_lp)}")
+
+# --- Run analysis on each matching ---
+analyze_match_quality(allocation_greedy, students_df, projects_df, supervisors_df, "Greedy Matching")
+analyze_match_quality(allocation_stable, students_df, projects_df, supervisors_df, "Stable Marriage Matching")
+analyze_match_quality(allocation_lp, students_df, projects_df, supervisors_df, "Linear Programming Matching")
