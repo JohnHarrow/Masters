@@ -2,6 +2,7 @@ import pandas as pd
 from collections import deque
 from pulp import LpProblem, LpVariable, LpMaximize, lpSum, LpBinary, PULP_CBC_CMD
 import numpy as np
+import matplotlib.pyplot as plt
 
 # --- Load data ---
 students_df = pd.read_csv("students.csv")
@@ -302,6 +303,115 @@ def analyze_match_quality(allocation, students_df, projects_df, supervisors_df, 
     for pid, count in usage.items():
         print(f"  {pid}: {count}")
 
+# --- Satisfaction analysis ---
+def compute_satisfaction_scores(allocation, students_df, method_name="Method"):
+    print(f"\n🎯 Student Satisfaction Score for {method_name}")
+
+    score_weights = {'choice_1': 3, 'choice_2': 2, 'choice_3': 1}
+    scores = []
+    unmatched = 0
+
+    for _, row in students_df.iterrows():
+        sid = row['student_id']
+        assigned = allocation.get(sid)
+
+        if assigned == row['choice_1']:
+            scores.append(score_weights['choice_1'])
+        elif assigned == row['choice_2']:
+            scores.append(score_weights['choice_2'])
+        elif assigned == row['choice_3']:
+            scores.append(score_weights['choice_3'])
+        elif assigned is None:
+            unmatched += 1
+            scores.append(0)
+        else:
+            scores.append(0)
+
+    avg_score = np.mean(scores)
+    print(f"  Average satisfaction score: {avg_score:.2f}")
+    print(f"  Unmatched students: {unmatched}")
+
+    # Histogram plot
+    plt.figure(figsize=(6, 4))
+    plt.hist(scores, bins=[-0.5, 0.5, 1.5, 2.5, 3.5], edgecolor='black', align='mid', rwidth=0.8)
+    plt.xticks([0, 1, 2, 3])
+    plt.xlabel("Satisfaction Score (0–3)")
+    plt.ylabel("Number of Students")
+    plt.title(f"Satisfaction Score Distribution - {method_name}")
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
+
+# --- Supervisor load analysis ---
+def analyze_supervisor_load(allocation, projects_df, supervisors_df, method_name="Method"):
+    print(f"\n📋 Supervisor Load Analysis for {method_name}:")
+
+    proj_to_sup = projects_df.set_index('project_id')['supervisor_id'].to_dict()
+    sup_capacities = supervisors_df.set_index('supervisor_id')['capacity'].to_dict()
+
+    supervisor_load = {sup: 0 for sup in sup_capacities}
+
+    # Count how many students are assigned under each supervisor
+    for pid in allocation.values():
+        sup = proj_to_sup.get(pid)
+        if sup in supervisor_load:
+            supervisor_load[sup] += 1
+
+    # Print and highlight overloads or underutilized supervisors
+    for sup_id, load in supervisor_load.items():
+        cap = sup_capacities.get(sup_id, 0)
+        sup_name = supervisors_df[supervisors_df['supervisor_id'] == sup_id]['supervisor_name'].values[0]
+
+        status = ""
+        if load > cap:
+            status = "❌ OVERLOADED"
+        elif load < cap:
+            status = "⚠️ UNDERUSED"
+        else:
+            status = "✅ OPTIMAL"
+
+        print(f"  {sup_name} (ID: {sup_id}) – Load: {load}, Capacity: {cap} → {status}")
+
+
+# --- Project popularity analysis ---
+def analyze_project_popularity_and_utilization(students_df, projects_df, allocation, method_name="Method"):
+    print(f"\n📈 Project Popularity & Utilization – {method_name}")
+
+    # 1. Count how many students requested each project (1st, 2nd, or 3rd choice)
+    popularity = {pid: 0 for pid in projects_df['project_id']}
+    for _, row in students_df.iterrows():
+        for col in ['choice_1', 'choice_2', 'choice_3']:
+            pid = row[col]
+            if pid in popularity:
+                popularity[pid] += 1
+
+    # 2. Count how many students were actually assigned to each project
+    utilization = {pid: 0 for pid in projects_df['project_id']}
+    for pid in allocation.values():
+        if pid in utilization:
+            utilization[pid] += 1
+
+    # 3. Report
+    print("\nProject ID | Requested | Assigned | Status")
+    print("-" * 40)
+    for pid in projects_df['project_id']:
+        requested = popularity.get(pid, 0)
+        assigned = utilization.get(pid, 0)
+
+        if requested == 0:
+            status = "🧊 NEVER PICKED"
+        elif assigned == 0:
+            status = "⚠️ NEVER ASSIGNED"
+        elif assigned > requested:
+            status = "❌ OVER-ASSIGNED"
+        elif assigned < requested:
+            status = "🔼 UNDER-ASSIGNED"
+        else:
+            status = "✅ MATCHED"
+
+        print(f"{pid:<10} | {requested:<9} | {assigned:<8} | {status}")
+
+
 # --- Run all matching algorithms ---
 allocation_greedy = greedy_matching(
     students_df, projects_df, supervisor_capacity, project_capacity, preallocated_df
@@ -331,3 +441,18 @@ print(f"🧮 LP unmatched students: {len(unmatched_lp)}")
 analyze_match_quality(allocation_greedy, students_df, projects_df, supervisors_df, "Greedy Matching")
 analyze_match_quality(allocation_stable, students_df, projects_df, supervisors_df, "Stable Marriage Matching")
 analyze_match_quality(allocation_lp, students_df, projects_df, supervisors_df, "Linear Programming Matching")
+
+# --- Run satisfaction analysis ---
+compute_satisfaction_scores(allocation_greedy, students_df, "Greedy Matching")
+compute_satisfaction_scores(allocation_stable, students_df, "Stable Marriage Matching")
+compute_satisfaction_scores(allocation_lp, students_df, "Linear Programming Matching")
+
+# --- Run supervisor load analysis ---
+analyze_supervisor_load(allocation_greedy, projects_df, supervisors_df, "Greedy Matching")
+analyze_supervisor_load(allocation_stable, projects_df, supervisors_df, "Stable Marriage Matching")
+analyze_supervisor_load(allocation_lp, projects_df, supervisors_df, "Linear Programming Matching")
+
+# --- Run project popularity analysis ---
+analyze_project_popularity_and_utilization(students_df, projects_df, allocation_greedy, "Greedy Matching")
+analyze_project_popularity_and_utilization(students_df, projects_df, allocation_stable, "Stable Marriage Matching")
+analyze_project_popularity_and_utilization(students_df, projects_df, allocation_lp, "Linear Programming Matching")
