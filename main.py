@@ -3,6 +3,7 @@ from collections import deque
 from pulp import LpProblem, LpVariable, LpMaximize, lpSum, LpBinary, PULP_CBC_CMD
 import numpy as np
 import matplotlib.pyplot as plt
+from openpyxl.styles import PatternFill, Font
 
 # --- Load data ---
 students_df = pd.read_csv("students.csv")
@@ -88,6 +89,7 @@ def greedy_matching(students_df, projects_df, supervisor_capacity, project_capac
     supervisor_load = {sup_id: 0 for sup_id in supervisor_capacity}
     project_load = {pid: 0 for pid in projects_df['project_id']}
 
+    # Assign preallocated students
     for _, row in preallocated_df.iterrows():
         sid = row['student_id']
         pid = row['project_id']
@@ -96,7 +98,11 @@ def greedy_matching(students_df, projects_df, supervisor_capacity, project_capac
         supervisor_load[sup] += 1
         project_load[pid] += 1
 
-    for _, row in students_df.iterrows():
+    # 🔀 Shuffle the students to reduce ordering bias
+    students_df_shuffled = students_df.sample(frac=1, random_state=None).reset_index(drop=True)
+
+    # Greedy allocation based on student preferences
+    for _, row in students_df_shuffled.iterrows():
         sid = row['student_id']
         if sid in allocation:
             continue
@@ -411,6 +417,128 @@ def analyze_project_popularity_and_utilization(students_df, projects_df, allocat
 
         print(f"{pid:<10} | {requested:<9} | {assigned:<8} | {status}")
 
+def export_matching_results_to_excel(
+    students_df,
+    allocations_dict,
+    filename="matching_results.xlsx"
+):
+    """
+    Exports matching results for multiple algorithms into one Excel workbook.
+    
+    Parameters:
+    - students_df: DataFrame with columns ['student_id', 'choice_1', 'choice_2', 'choice_3']
+    - allocations_dict: dict of {method_name: allocation_dict} where allocation_dict maps student_id to project_id
+    - filename: output Excel filename
+    
+    Output:
+    - Excel workbook with sheets for each algorithm and a summary sheet.
+    """
+    
+    from openpyxl.styles import PatternFill
+    from openpyxl.formatting.rule import CellIsRule
+    from openpyxl import load_workbook
+    
+    score_weights = {'choice_1': 3, 'choice_2': 2, 'choice_3': 1}
+    choice_columns = ['choice_1', 'choice_2', 'choice_3']
+
+    # Use context manager to save Excel file properly
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+
+        # Store summary data for each method
+        summary_data = []
+
+        for method_name, allocation in allocations_dict.items():
+            # Build DataFrame of results for this method
+            results = []
+            for _, student in students_df.iterrows():
+                sid = student['student_id']
+                assigned = allocation.get(sid)
+
+                if assigned is None:
+                    choice_num = 'unmatched'
+                    score = 0
+                else:
+                    # Determine which choice number the assigned project corresponds to
+                    if assigned == student['choice_1']:
+                        choice_num = 1
+                        score = score_weights['choice_1']
+                    elif assigned == student['choice_2']:
+                        choice_num = 2
+                        score = score_weights['choice_2']
+                    elif assigned == student['choice_3']:
+                        choice_num = 3
+                        score = score_weights['choice_3']
+                    else:
+                        choice_num = 'other'
+                        score = 0
+
+                results.append({
+                    'student_id': sid,
+                    'assigned_project': assigned,
+                    'assigned_choice': choice_num,
+                    'satisfaction_score': score
+                })
+
+            results_df = pd.DataFrame(results)
+
+            # Write sheet
+            results_df.to_excel(writer, sheet_name=method_name, index=False)
+
+            # Aggregate stats for summary
+            total_students = len(students_df)
+            unmatched = sum(results_df['assigned_choice'] == 'unmatched')
+            avg_score = results_df['satisfaction_score'].mean()
+            choice_1_count = sum(results_df['assigned_choice'] == 1)
+            choice_2_count = sum(results_df['assigned_choice'] == 2)
+            choice_3_count = sum(results_df['assigned_choice'] == 3)
+            other_count = sum(results_df['assigned_choice'] == 'other')
+
+            summary_data.append({
+                'Algorithm': method_name,
+                'Total Students': total_students,
+                'Unmatched Students': unmatched,
+                'Average Satisfaction Score': avg_score,
+                'Assigned Choice 1': choice_1_count,
+                'Assigned Choice 2': choice_2_count,
+                'Assigned Choice 3': choice_3_count,
+                'Assigned Other': other_count
+            })
+
+        # Create summary sheet
+        summary_df = pd.DataFrame(summary_data)
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+
+    # Now add conditional formatting using openpyxl (file is fully saved now)
+    wb = load_workbook(filename)
+
+    # Define fills
+    fill_unmatched = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # light red
+    fill_other = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")      # light yellow
+
+    for method_name in allocations_dict.keys():
+        ws = wb[method_name]
+
+        # Find the column index of assigned_choice (1-based for openpyxl)
+        for idx, cell in enumerate(ws[1], start=1):
+            if cell.value == 'assigned_choice':
+                col_idx = idx
+                break
+
+        col_letter = chr(64 + col_idx)
+        ws.conditional_formatting.add(
+            f'{col_letter}2:{col_letter}{ws.max_row}',
+            CellIsRule(operator='equal', formula=['"unmatched"'], fill=fill_unmatched)
+        )
+        ws.conditional_formatting.add(
+            f'{col_letter}2:{col_letter}{ws.max_row}',
+            CellIsRule(operator='equal', formula=['"other"'], fill=fill_other)
+        )
+
+    wb.save(filename)
+    print(f"Matching results successfully saved to {filename}")
+
+
+
 
 # --- Run all matching algorithms ---
 allocation_greedy = greedy_matching(
@@ -428,6 +556,7 @@ save_allocation_result(allocation_greedy, students_df, "allocation_result_greedy
 save_allocation_result(allocation_stable, students_df, "allocation_result_stable.csv")
 save_allocation_result(allocation_lp, students_df, "allocation_result_linear_programming.csv")
 
+
 # --- Summary ---
 unmatched_greedy = [sid for sid in students_df['student_id'] if sid not in allocation_greedy]
 unmatched_stable = [sid for sid in students_df['student_id'] if sid not in allocation_stable]
@@ -436,6 +565,15 @@ unmatched_lp = [sid for sid in students_df['student_id'] if sid not in allocatio
 print(f"\n🔁 Greedy unmatched students: {len(unmatched_greedy)}")
 print(f"💍 Stable unmatched students: {len(unmatched_stable)}")
 print(f"🧮 LP unmatched students: {len(unmatched_lp)}")
+
+# --- Excel Output ---
+allocations_dict = {
+    "Greedy Matching": allocation_greedy,
+    "Stable Marriage": allocation_stable,
+    "Linear Programming": allocation_lp,
+}
+
+export_matching_results_to_excel(students_df, allocations_dict, "all_matchings.xlsx")
 
 # --- Run analysis on each matching ---
 analyze_match_quality(allocation_greedy, students_df, projects_df, supervisors_df, "Greedy Matching")
