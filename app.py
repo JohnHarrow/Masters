@@ -1,3 +1,5 @@
+# python -m streamlit run app.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -13,18 +15,96 @@ st.set_page_config(page_title="Project Matching App", layout="wide")
 
 st.title("🎓 Student-Project Allocation Tool")
 
-# --- File Upload ---
-st.sidebar.header("📂 Upload Required CSV Files")
-students_file = st.sidebar.file_uploader("Upload students.csv", type="csv")
-projects_file = st.sidebar.file_uploader("Upload projects.csv", type="csv")
-supervisors_file = st.sidebar.file_uploader("Upload supervisors.csv", type="csv")
-preallocated_file = st.sidebar.file_uploader("Upload preallocated.csv", type="csv")
+# --- Generate Intitial Files ---
+def generate_template_excel():
+    from openpyxl import Workbook
+    from io import BytesIO
 
-if all([students_file, projects_file, supervisors_file, preallocated_file]):
-    students_df = pd.read_csv(students_file)
-    projects_df = pd.read_csv(projects_file)
-    supervisors_df = pd.read_csv(supervisors_file)
-    preallocated_df = pd.read_csv(preallocated_file)
+    wb = Workbook()
+
+    # --- Students Sheet ---
+    ws_students = wb.active
+    ws_students.title = "students"
+    ws_students.append(["student_id", "student_name", "choice_1", "choice_2", "choice_3"])
+
+    # --- Projects Sheet ---
+    ws_projects = wb.create_sheet("projects")
+    ws_projects.append(["project_id", "project_title", "supervisor_id", "supervisor_name", "max_students"])
+
+    # --- Supervisors Sheet ---
+    ws_supervisors = wb.create_sheet("supervisors")
+    ws_supervisors.append(["supervisor_id", "supervisor_name", "capacity"])
+
+    # --- Preallocated Sheet ---
+    ws_preallocated = wb.create_sheet("preallocated")
+    ws_preallocated.append(["student_id", "project_id", "supervisor_id"])
+
+    # Save to BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+# --- File Upload ---
+st.sidebar.header("📂 Upload Input Data")
+
+# --- Template Download Button ---
+st.sidebar.markdown("---")
+st.sidebar.markdown("📥 Need sample input files?")
+if st.sidebar.button("Generate Input Template"):
+    template = generate_template_excel()
+    st.sidebar.download_button(
+        label="⬇️ Download Excel Template",
+        data=template,
+        file_name="input_template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# Option 1: Single Excel file
+excel_file = st.sidebar.file_uploader("📘 Upload Excel File with All Sheets", type="xlsx")
+
+# Option 2: Separate CSVs
+st.sidebar.markdown("Or upload individual CSV files:")
+students_file = st.sidebar.file_uploader("students.csv", type="csv")
+projects_file = st.sidebar.file_uploader("projects.csv", type="csv")
+supervisors_file = st.sidebar.file_uploader("supervisors.csv", type="csv")
+preallocated_file = st.sidebar.file_uploader("preallocated.csv", type="csv")
+
+
+data_loaded = False
+
+if excel_file:
+    try:
+        excel_data = pd.ExcelFile(excel_file)
+        students_df = pd.read_excel(excel_data, sheet_name="students")
+        projects_df = pd.read_excel(excel_data, sheet_name="projects")
+        supervisors_df = pd.read_excel(excel_data, sheet_name="supervisors")
+        preallocated_df = pd.read_excel(excel_data, sheet_name="preallocated")
+        st.success("✅ Excel file loaded successfully.")
+        data_loaded = True
+    except Exception as e:
+        st.error(f"❌ Failed to read Excel file: {e}")
+
+elif all([students_file, projects_file, supervisors_file, preallocated_file]):
+    try:
+        students_df = pd.read_csv(students_file)
+        projects_df = pd.read_csv(projects_file)
+        supervisors_df = pd.read_csv(supervisors_file)
+        preallocated_df = pd.read_csv(preallocated_file)
+        st.success("✅ CSV files loaded successfully.")
+        data_loaded = True
+    except Exception as e:
+        st.error(f"❌ Failed to read one or more CSV files: {e}")
+
+else:
+    st.info("⬅️ Please upload either a single Excel file or all four required CSV files to begin.")
+
+# --- Only run logic if data loaded ---
+if data_loaded:
+
+    # --- Coerce numeric columns before validation ---
+    projects_df['max_students'] = pd.to_numeric(projects_df['max_students'], errors='coerce')
+    supervisors_df['capacity'] = pd.to_numeric(supervisors_df['capacity'], errors='coerce')
 
     # --- Data Validation ---
     def validate_student_data(students_df, projects_df):
@@ -66,6 +146,52 @@ if all([students_file, projects_file, supervisors_file, preallocated_file]):
             if len(set(sup_ids)) < 3:
                 warnings.append(row['student_id'])
         return warnings
+    
+    def validate_project_data(projects_df):
+        errors = []
+        required_columns = {'project_id', 'project_title', 'supervisor_id', 'supervisor_name', 'max_students'}
+        missing_columns = required_columns - set(projects_df.columns)
+        if missing_columns:
+            errors.append(f"Missing required columns in projects sheet: {list(missing_columns)}")
+            return errors
+
+        if projects_df['project_id'].duplicated().any():
+            dup_ids = projects_df[projects_df['project_id'].duplicated()]['project_id'].tolist()
+            errors.append(f"Duplicate project IDs found: {dup_ids}")
+
+        # Allow blanks but no negative values
+        invalid_rows = projects_df[
+            projects_df['max_students'].notnull() & (projects_df['max_students'] < 0)
+        ]
+        if not invalid_rows.empty:
+            invalid_ids = invalid_rows['project_id'].tolist()
+            errors.append(f"Negative max_students values for project IDs: {invalid_ids}")
+
+        return errors
+    
+    def validate_supervisor_data(supervisors_df):
+        errors = []
+        required_columns = {'supervisor_id', 'supervisor_name', 'capacity'}
+        missing_columns = required_columns - set(supervisors_df.columns)
+        if missing_columns:
+            errors.append(f"Missing required columns in supervisors sheet: {list(missing_columns)}")
+            return errors
+
+        if supervisors_df['supervisor_id'].duplicated().any():
+            dup_ids = supervisors_df[supervisors_df['supervisor_id'].duplicated()]['supervisor_id'].tolist()
+            errors.append(f"Duplicate supervisor IDs found: {dup_ids}")
+
+        # Allow blanks but no negative values
+        invalid_rows = supervisors_df[
+            supervisors_df['capacity'].notnull() & (supervisors_df['capacity'] < 0)
+        ]
+        if not invalid_rows.empty:
+            invalid_ids = invalid_rows['supervisor_id'].tolist()
+            errors.append(f"Negative capacity values for supervisor IDs: {invalid_ids}")
+
+        return errors
+
+
 
     # --- Capacities ---
     supervisor_capacity = {
@@ -78,17 +204,31 @@ if all([students_file, projects_file, supervisors_file, preallocated_file]):
         for _, row in projects_df.iterrows()
     }
 
-    errors = validate_student_data(students_df, projects_df)
-    if errors:
+    # Run all validation checks
+    project_errors = validate_project_data(projects_df)
+    supervisor_errors = validate_supervisor_data(supervisors_df)
+    student_errors = validate_student_data(students_df, projects_df)
+    diversity_warnings = validate_supervisor_diversity(students_df, projects_df)
+
+    if student_errors or project_errors or supervisor_errors:
         st.error("🚫 Data validation failed:")
-        for err in errors:
-            st.write("-", err)
+        if student_errors:
+            st.subheader("📘 Student Data Issues")
+            for err in student_errors:
+                st.write("-", err)
+        if project_errors:
+            st.subheader("📁 Project Data Issues")
+            for err in project_errors:
+                st.write("-", err)
+        if supervisor_errors:
+            st.subheader("🧑‍🏫 Supervisor Data Issues")
+            for err in supervisor_errors:
+                st.write("-", err)
         st.stop()
 
-    warnings = validate_supervisor_diversity(students_df, projects_df)
-    if warnings:
-        st.warning("⚠️ Students with limited supervisor diversity in choices:")
-        st.write(warnings)
+    if diversity_warnings:
+        st.warning("⚠️ Students with limited supervisor diversity in their choices:")
+        st.write(diversity_warnings)
 
     st.success("✅ Data validation passed!")
 
@@ -461,27 +601,65 @@ if all([students_file, projects_file, supervisors_file, preallocated_file]):
     def export_excel(allocations):
         from openpyxl import Workbook
         from openpyxl.utils.dataframe import dataframe_to_rows
-        from openpyxl.styles import Font
         from io import BytesIO
 
         output = BytesIO()
         wb = Workbook()
+
+        # Mapping for quick lookup
+        project_lookup = projects_df.set_index('project_id')[['project_title', 'supervisor_id']].to_dict('index')
+        supervisor_lookup = supervisors_df.set_index('supervisor_id')['supervisor_name'].to_dict()
+
         for name, alloc in allocations.items():
             ws = wb.create_sheet(title=name)
             data = []
+
             for _, row in students_df.iterrows():
                 sid = row['student_id']
-                assigned = alloc.get(sid, 'UNASSIGNED')
+                sname = row['student_name']
+                assigned_pid = alloc.get(sid, None)
+
+                # Determine choice rank
+                if assigned_pid == row['choice_1']:
+                    choice_rank = "1st"
+                elif assigned_pid == row['choice_2']:
+                    choice_rank = "2nd"
+                elif assigned_pid == row['choice_3']:
+                    choice_rank = "3rd"
+                elif assigned_pid is not None:
+                    choice_rank = "Outside Top 3"
+                else:
+                    choice_rank = "Unassigned"
+
+                if assigned_pid:
+                    project_info = project_lookup.get(assigned_pid, {})
+                    project_name = project_info.get('project_title', 'Unknown')
+                    supervisor_id = project_info.get('supervisor_id', 'Unknown')
+                    supervisor_name = supervisor_lookup.get(supervisor_id, 'Unknown')
+                else:
+                    assigned_pid = 'UNASSIGNED'
+                    project_name = ''
+                    supervisor_name = ''
+
                 data.append({
                     "student_id": sid,
-                    "student_name": row['student_name'],
-                    "assigned_project": assigned
+                    "student_name": sname,
+                    "assigned_project_id": assigned_pid,
+                    "assigned_project_name": project_name,
+                    "supervisor_name": supervisor_name,
+                    "assigned_choice": choice_rank
                 })
+
             df = pd.DataFrame(data)
             for r in dataframe_to_rows(df, index=False, header=True):
                 ws.append(r)
-        del wb["Sheet"]
+
+        # Remove default sheet if exists
+        if "Sheet" in wb.sheetnames:
+            del wb["Sheet"]
+
         wb.save(output)
+        output.seek(0)
         return output
 
     excel_data = export_excel({
