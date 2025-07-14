@@ -1,3 +1,5 @@
 You can find the app at: https://masters-jh.streamlit.app/
 
 You can upload either the excel workbooks or csv files into the app to test them.
+
+Or you can generate an empty template and add some of your own test data.
