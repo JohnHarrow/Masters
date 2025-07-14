@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Project Matching App", layout="wide")
 
-st.title("🎓 Student-Project Allocation Tool")
+st.title("Student-Project Allocation Tool")
 
 # --- Generate Intitial Files ---
 def generate_template_excel():
@@ -46,22 +46,22 @@ def generate_template_excel():
     return output
 
 # --- File Upload ---
-st.sidebar.header("📂 Upload Input Data")
+st.sidebar.header("Upload Input Data")
 
 # --- Template Download Button ---
 st.sidebar.markdown("---")
-st.sidebar.markdown("📥 Need sample input files?")
+st.sidebar.markdown("Need sample input files?")
 if st.sidebar.button("Generate Input Template"):
     template = generate_template_excel()
     st.sidebar.download_button(
-        label="⬇️ Download Excel Template",
+        label="Download Excel Template",
         data=template,
         file_name="input_template.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
 # Option 1: Single Excel file
-excel_file = st.sidebar.file_uploader("📘 Upload Excel File with All Sheets", type="xlsx")
+excel_file = st.sidebar.file_uploader("Upload Excel File with All Sheets", type="xlsx")
 
 # Option 2: Separate CSVs
 st.sidebar.markdown("Or upload individual CSV files:")
@@ -80,10 +80,10 @@ if excel_file:
         projects_df = pd.read_excel(excel_data, sheet_name="projects")
         supervisors_df = pd.read_excel(excel_data, sheet_name="supervisors")
         preallocated_df = pd.read_excel(excel_data, sheet_name="preallocated")
-        st.success("✅ Excel file loaded successfully.")
+        st.success("Excel file loaded successfully.")
         data_loaded = True
     except Exception as e:
-        st.error(f"❌ Failed to read Excel file: {e}")
+        st.error(f"Failed to read Excel file: {e}")
 
 elif all([students_file, projects_file, supervisors_file, preallocated_file]):
     try:
@@ -91,10 +91,10 @@ elif all([students_file, projects_file, supervisors_file, preallocated_file]):
         projects_df = pd.read_csv(projects_file)
         supervisors_df = pd.read_csv(supervisors_file)
         preallocated_df = pd.read_csv(preallocated_file)
-        st.success("✅ CSV files loaded successfully.")
+        st.success("CSV files loaded successfully.")
         data_loaded = True
     except Exception as e:
-        st.error(f"❌ Failed to read one or more CSV files: {e}")
+        st.error(f"Failed to read one or more CSV files: {e}")
 
 else:
     st.info("⬅️ Please upload either a single Excel file or all four required CSV files to begin.")
@@ -211,26 +211,26 @@ if data_loaded:
     diversity_warnings = validate_supervisor_diversity(students_df, projects_df)
 
     if student_errors or project_errors or supervisor_errors:
-        st.error("🚫 Data validation failed:")
+        st.error("Data validation failed:")
         if student_errors:
-            st.subheader("📘 Student Data Issues")
+            st.subheader("Student Data Issues")
             for err in student_errors:
                 st.write("-", err)
         if project_errors:
-            st.subheader("📁 Project Data Issues")
+            st.subheader("Project Data Issues")
             for err in project_errors:
                 st.write("-", err)
         if supervisor_errors:
-            st.subheader("🧑‍🏫 Supervisor Data Issues")
+            st.subheader("Supervisor Data Issues")
             for err in supervisor_errors:
                 st.write("-", err)
         st.stop()
 
     if diversity_warnings:
-        st.warning("⚠️ Students with limited supervisor diversity in their choices:")
+        st.warning("Students with limited supervisor diversity in their choices:")
         st.write(diversity_warnings)
 
-    st.success("✅ Data validation passed!")
+    st.success("Data validation passed!")
 
     # --- Matching Algorithms ---
     def greedy_matching(students_df, projects_df, supervisor_capacity, project_capacity, preallocated_df):
@@ -332,8 +332,8 @@ if data_loaded:
         stable = stable_marriage_matching(students_df, projects_df, supervisor_capacity, project_capacity, preallocated_df)
         lp = linear_programming_matching(students_df, projects_df, supervisor_capacity, project_capacity, preallocated_df)
 
-    st.success("✅ Matching complete!")
-    st.subheader("📊 Match Summary")
+    st.success("Matching complete!")
+    st.subheader("Match Summary")
 
     # --- Results Overview ---
     def summarize(allocation, method):
@@ -381,7 +381,7 @@ if data_loaded:
 
     # --- Match Quality Analysis ---
     def analyze_match_quality(allocation, students_df, projects_df, supervisors_df, method_name="Method"):
-        st.subheader(f"📊 Match Quality Analysis – {method_name}")
+        st.subheader(f"Match Quality Analysis – {method_name}")
 
         # 1. Choice preference distribution
         distribution = {'choice_1': 0, 'choice_2': 0, 'choice_3': 0, 'unmatched': 0, 'other': 0}
@@ -399,7 +399,7 @@ if data_loaded:
             else:
                 distribution['other'] += 1
 
-        st.markdown("**🎯 Choice Preference Distribution:**")
+        st.markdown("**Choice Preference Distribution:**")
         st.dataframe(pd.DataFrame(distribution.items(), columns=["Choice", "Count"]))
 
         # 2. Supervisor load distribution
@@ -411,7 +411,7 @@ if data_loaded:
                 supervisor_load[sup] += 1
 
         loads = np.array(list(supervisor_load.values()))
-        st.markdown("**🧑‍🏫 Supervisor Load Distribution:**")
+        st.markdown("**Supervisor Load Distribution:**")
         st.write(f"Min load: {loads.min()} | Max load: {loads.max()} | Mean: {loads.mean():.2f} | Std Dev: {loads.std():.2f}")
         sup_load_df = pd.DataFrame.from_dict(supervisor_load, orient='index', columns=['Students Assigned'])
         st.dataframe(sup_load_df)
@@ -424,7 +424,7 @@ if data_loaded:
             if assigned is not None and assigned not in [row['choice_1'], row['choice_2'], row['choice_3']]:
                 outside.append(sid)
 
-        st.markdown("**📍 Assigned Outside Top 3 Choices:**")
+        st.markdown("**Assigned Outside Top 3 Choices:**")
         st.write(f"{len(outside)} student(s) assigned outside their top 3.")
         if outside:
             st.dataframe(pd.DataFrame(outside, columns=["Student ID"]))
@@ -434,21 +434,22 @@ if data_loaded:
         for pid in allocation.values():
             usage[pid] = usage.get(pid, 0) + 1
 
-        st.markdown("**📦 Project Utilization:**")
+        st.markdown("**Project Utilization:**")
         usage_df = pd.DataFrame.from_dict(usage, orient='index', columns=["Assigned Count"])
         usage_df.index.name = "Project ID"
         st.dataframe(usage_df)
 
-    with st.expander("🔍 View Greedy Matching Analysis"):
+    st.subheader("Analysis")
+    with st.expander("View Greedy Matching Analysis"):
         analyze_match_quality(greedy, students_df, projects_df, supervisors_df, "Greedy Matching")
-    with st.expander("🔍 View Stable Marriage Analysis"):
+    with st.expander("View Stable Marriage Analysis"):
         analyze_match_quality(stable, students_df, projects_df, supervisors_df, "Stable Marriage")
-    with st.expander("🔍 View Linear Programming Analysis"):
+    with st.expander("View Linear Programming Analysis"):
         analyze_match_quality(lp, students_df, projects_df, supervisors_df, "Linear Programming")
 
     # --- Satisfaction Analysis ---
     def compute_satisfaction_scores(allocation, students_df, method_name="Method"):
-        st.subheader(f"🎯 Student Satisfaction Score – {method_name}")
+        st.subheader(f"Student Satisfaction Score – {method_name}")
 
         score_weights = {'choice_1': 3, 'choice_2': 2, 'choice_3': 1}
         scores = []
@@ -485,17 +486,17 @@ if data_loaded:
         ax.grid(axis='y', linestyle='--', alpha=0.7)
         st.pyplot(fig)
 
-
-    with st.expander("📈 Satisfaction – Greedy Matching"):
+    st.subheader("Satisfaction")
+    with st.expander("Satisfaction – Greedy Matching"):
         compute_satisfaction_scores(greedy, students_df, "Greedy Matching")
-    with st.expander("📈 Satisfaction – Stable Marriage"):
+    with st.expander("Satisfaction – Stable Marriage"):
         compute_satisfaction_scores(stable, students_df, "Stable Marriage")
-    with st.expander("📈 Satisfaction – Linear Programming"):
+    with st.expander("Satisfaction – Linear Programming"):
         compute_satisfaction_scores(lp, students_df, "Linear Programming")
 
     # --- Supervisor Load Analysis ---
     def analyze_supervisor_load(allocation, projects_df, supervisors_df, method_name="Method"):
-        st.subheader(f"📋 Supervisor Load Analysis – {method_name}")
+        st.subheader(f"Supervisor Load Analysis – {method_name}")
 
         proj_to_sup = projects_df.set_index('project_id')['supervisor_id'].to_dict()
         sup_capacities = supervisors_df.set_index('supervisor_id')['capacity'].to_dict()
@@ -515,11 +516,11 @@ if data_loaded:
             name = supervisors_df.loc[supervisors_df['supervisor_id'] == sup_id, 'supervisor_name'].values[0]
 
             if load > cap:
-                status = "❌ OVERLOADED"
+                status = "OVERLOADED"
             elif load < cap:
-                status = "⚠️ UNDERUSED"
+                status = "UNDERUSED"
             else:
-                status = "✅ OPTIMAL"
+                status = "OPTIMAL"
 
             results.append({
                 "Supervisor Name": name,
@@ -532,17 +533,17 @@ if data_loaded:
         df = pd.DataFrame(results)
         st.dataframe(df)
 
-    st.subheader("🧑‍🏫 Supervisor Load Analysis")
-    with st.expander("🟦 Greedy Matching – Supervisor Load"):
+    st.subheader("Supervisor Load Analysis")
+    with st.expander("Greedy Matching – Supervisor Load"):
         analyze_supervisor_load(greedy, projects_df, supervisors_df, "Greedy")
-    with st.expander("🟪 Stable Marriage – Supervisor Load"):
+    with st.expander("Stable Marriage – Supervisor Load"):
         analyze_supervisor_load(stable, projects_df, supervisors_df, "Stable Marriage")
-    with st.expander("🟧 Linear Programming – Supervisor Load"):
+    with st.expander("Linear Programming – Supervisor Load"):
         analyze_supervisor_load(lp, projects_df, supervisors_df, "Linear Programming")
 
     # --- Project Popularity Analysis ---
     def analyze_project_popularity_and_utilization(students_df, projects_df, allocation, method_name="Method"):
-        st.subheader(f"📈 Project Popularity & Utilization – {method_name}")
+        st.subheader(f"Project Popularity & Utilization – {method_name}")
 
         # Count how many students requested each project
         popularity = {pid: 0 for pid in projects_df['project_id']}
@@ -565,15 +566,15 @@ if data_loaded:
             assigned = utilization.get(pid, 0)
 
             if requested == 0:
-                status = "🧊 NEVER PICKED"
+                status = "NEVER PICKED"
             elif assigned == 0:
-                status = "⚠️ NEVER ASSIGNED"
+                status = "NEVER ASSIGNED"
             elif assigned > requested:
-                status = "❌ OVER-ASSIGNED"
+                status = "OVER-ASSIGNED"
             elif assigned < requested:
-                status = "🔼 UNDER-ASSIGNED"
+                status = "UNDER-ASSIGNED"
             else:
-                status = "✅ MATCHED"
+                status = "MATCHED"
 
             data.append({
                 "Project ID": pid,
@@ -585,12 +586,12 @@ if data_loaded:
         df = pd.DataFrame(data)
         st.dataframe(df, use_container_width=True)
 
-    st.subheader("📦 Project Popularity & Utilization")
-    with st.expander("🟦 Greedy Matching – Project Popularity"):
+    st.subheader("Project Popularity & Utilization")
+    with st.expander("Greedy Matching – Project Popularity"):
         analyze_project_popularity_and_utilization(students_df, projects_df, greedy, "Greedy")
-    with st.expander("🟪 Stable Marriage – Project Popularity"):
+    with st.expander("Stable Marriage – Project Popularity"):
         analyze_project_popularity_and_utilization(students_df, projects_df, stable, "Stable Marriage")
-    with st.expander("🟧 Linear Programming – Project Popularity"):
+    with st.expander("Linear Programming – Project Popularity"):
         analyze_project_popularity_and_utilization(students_df, projects_df, lp, "Linear Programming")
 
 
@@ -668,8 +669,8 @@ if data_loaded:
         "Linear Programming": lp
     })
 
-    st.download_button("📥 Download Excel Results", data=excel_data, file_name="matchings.xlsx")
+    st.download_button("Download Excel Results", data=excel_data, file_name="matchings.xlsx")
 
-else:
-    st.info("⬅️ Please upload all required CSV files to begin.")
+# else:
+    # st.info("Please upload all required CSV files to begin.")
 
