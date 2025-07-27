@@ -33,7 +33,7 @@ def generate_template_excel():
 
     # --- Supervisors Sheet ---
     ws_supervisors = wb.create_sheet("supervisors")
-    ws_supervisors.append(["supervisor_id", "supervisor_name", "capacity"])
+    ws_supervisors.append(["supervisor_id", "supervisor_name", "supervisor_email", "capacity"])
 
     # --- Preallocated Sheet ---
     ws_preallocated = wb.create_sheet("preallocated")
@@ -172,6 +172,7 @@ if data_loaded:
     def validate_supervisor_data(supervisors_df):
         errors = []
         required_columns = {'supervisor_id', 'supervisor_name', 'capacity'}
+        optional_columns = {'supervisor_email'}
         missing_columns = required_columns - set(supervisors_df.columns)
         if missing_columns:
             errors.append(f"Missing required columns in supervisors sheet: {list(missing_columns)}")
@@ -610,6 +611,7 @@ if data_loaded:
         # Mapping for quick lookup
         project_lookup = projects_df.set_index('project_id')[['project_title', 'supervisor_id']].to_dict('index')
         supervisor_lookup = supervisors_df.set_index('supervisor_id')['supervisor_name'].to_dict()
+        supervisor_email_lookup = supervisors_df.set_index('supervisor_id')['supervisor_email'].to_dict()
 
         for name, alloc in allocations.items():
             ws = wb.create_sheet(title=name)
@@ -641,6 +643,9 @@ if data_loaded:
                     assigned_pid = 'UNASSIGNED'
                     project_name = ''
                     supervisor_name = ''
+                    supervisor_id = None
+
+                supervisor_email = supervisor_email_lookup.get(supervisor_id, 'Unknown')
 
                 data.append({
                     "student_id": sid,
@@ -648,6 +653,7 @@ if data_loaded:
                     "assigned_project_id": assigned_pid,
                     "assigned_project_name": project_name,
                     "supervisor_name": supervisor_name,
+                    "supervisor_email": supervisor_email,
                     "assigned_choice": choice_rank
                 })
 
