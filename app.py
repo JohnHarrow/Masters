@@ -546,7 +546,9 @@ if data_loaded:
                 distribution['other'] += 1
 
         st.markdown("**Choice Preference Distribution:**")
-        st.dataframe(pd.DataFrame(distribution.items(), columns=["Choice", "Count"]))
+        choice_df = pd.DataFrame.from_dict(distribution, orient="index", columns=["Count"])
+        choice_df.index.name = "Choice"
+        st.dataframe(choice_df)
 
         # 2. Supervisor load distribution
         proj_to_sup = projects_df.set_index('project_id')['supervisor_id'].to_dict()
@@ -555,11 +557,20 @@ if data_loaded:
             sup = proj_to_sup.get(pid)
             if sup is not None:
                 supervisor_load[sup] += 1
-
-        loads = np.array(list(supervisor_load.values()))
+        # Map supervisor_id to name
+        supervisor_name_lookup = supervisors_df.set_index('supervisor_id')['supervisor_name'].to_dict()
+        # Reformat dictionary to use supervisor names as keys
+        supervisor_named_load = {
+            supervisor_name_lookup.get(sup_id, sup_id): load
+            for sup_id, load in supervisor_load.items()
+        }
+        loads = np.array(list(supervisor_named_load.values()))
         st.markdown("**Supervisor Load Distribution:**")
         st.write(f"Min load: {loads.min()} | Max load: {loads.max()} | Mean: {loads.mean():.2f} | Std Dev: {loads.std():.2f}")
-        sup_load_df = pd.DataFrame.from_dict(supervisor_load, orient='index', columns=['Students Assigned'])
+        # Create DataFrame with supervisor names as index
+        sup_load_df = pd.DataFrame.from_dict(supervisor_named_load, orient='index', columns=['Students Assigned'])
+        sup_load_df.index.name = "Supervisor Name"
+        sup_load_df = sup_load_df.sort_values(by="Students Assigned", ascending=False)
         st.dataframe(sup_load_df)
 
         # 3. Students assigned outside choices
@@ -573,16 +584,25 @@ if data_loaded:
         st.markdown("**Assigned Outside Top 3 Choices:**")
         st.write(f"{len(outside)} student(s) assigned outside their top 3.")
         if outside:
-            st.dataframe(pd.DataFrame(outside, columns=["Student ID"]))
+            outside_df = pd.DataFrame(outside, columns=["Student ID"])
+            st.dataframe(outside_df, use_container_width=True)
 
         # 4. Project utilization
         usage = {pid: 0 for pid in projects_df['project_id']}
         for pid in allocation.values():
-            usage[pid] = usage.get(pid, 0) + 1
-
+            if pid in usage:
+                usage[pid] += 1
+        # Map project_id to project_title
+        project_name_lookup = projects_df.set_index('project_id')['project_title'].to_dict()
+        # Replace project_id keys with project names
+        usage_named = {
+            project_name_lookup.get(pid, pid): count
+            for pid, count in usage.items()
+        }
         st.markdown("**Project Utilization:**")
-        usage_df = pd.DataFrame.from_dict(usage, orient='index', columns=["Assigned Count"])
-        usage_df.index.name = "Project ID"
+        usage_df = pd.DataFrame.from_dict(usage_named, orient='index', columns=["Assigned Count"])
+        usage_df.index.name = "Project Title"
+        usage_df = usage_df.sort_values(by="Assigned Count", ascending=False)
         st.dataframe(usage_df)
 
     st.subheader("Analysis")
@@ -721,6 +741,7 @@ if data_loaded:
                 utilization[pid] += 1
 
         # Build final table
+        project_id_to_title = projects_df.set_index("project_id")["project_title"].to_dict()
         data = []
         for pid in projects_df['project_id']:
             requested = popularity.get(pid, 0)
@@ -738,13 +759,15 @@ if data_loaded:
                 status = "MATCHED"
 
             data.append({
-                "Project ID": pid,
+                "Project Title": project_id_to_title.get(pid, "Unknown"),
                 "Requested": requested,
                 "Assigned": assigned,
                 "Status": status
             })
 
         df = pd.DataFrame(data)
+        df = df.sort_values(by="Assigned", ascending=False)
+        df.set_index("Project Title", inplace=True)
         st.dataframe(df, use_container_width=True)
 
     st.subheader("Project Popularity & Utilization")
