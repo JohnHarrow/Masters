@@ -1,11 +1,11 @@
-supervisor_id,supervisor_name,capacity
-SUP01,Dr. Alice Green,5
-SUP02,Dr. Ben Smith,4
-SUP03,Prof. Carol Chen,
-SUP04,Dr. Daniel Lee,6
-SUP05,Prof. Emma Patel,
-SUP06,Dr. Faisal Khan,3
-SUP07,Prof. George Hall,
-SUP08,Dr. Hannah O'Neil,2
-SUP09,Dr. Ian Russell,
-SUP10,Dr. Jane Cooper,5
+supervisor_id,supervisor_name,supervisor_email,capacity
+SUP01,Dr. Alice Green,alice.green@university.edu,5
+SUP02,Dr. Ben Smith,ben.smith@university.edu,4
+SUP03,Prof. Carol Chen,carol.chen@university.edu,
+SUP04,Dr. Daniel Lee,daniel.lee@university.edu,6
+SUP05,Prof. Emma Patel,emma.patel@university.edu,
+SUP06,Dr. Faisal Khan,faisal.khan@university.edu,3
+SUP07,Prof. George Hall,george.hall@university.edu,
+SUP08,Dr. Hannah O'Neil,hannah.oneil@university.edu,2
+SUP09,Dr. Ian Russell,ian.russell@university.edu,
+SUP10,Dr. Jane Cooper,jane.cooper@university.edu,5
