@@ -1,5 +1,9 @@
 # python -m streamlit run app.py
 
+# ═══════════════════════════════════════════════════════
+# SECTION: App Configuration
+# ═══════════════════════════════════════════════════════
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,10 +14,17 @@ from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import CellIsRule
 from openpyxl import load_workbook
 import matplotlib.pyplot as plt
+from tempfile import NamedTemporaryFile
+from openpyxl import Workbook
 
 st.set_page_config(page_title="Project Matching App", layout="wide")
 
 st.title("Student-Project Allocation Tool")
+
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Template Generation
+# ═══════════════════════════════════════════════════════
 
 # --- Generate Intitial Files ---
 def generate_template_excel():
@@ -33,7 +44,7 @@ def generate_template_excel():
 
     # --- Supervisors Sheet ---
     ws_supervisors = wb.create_sheet("supervisors")
-    ws_supervisors.append(["supervisor_id", "supervisor_name", "capacity"])
+    ws_supervisors.append(["supervisor_id", "supervisor_name", "supervisor_email", "capacity"])
 
     # --- Preallocated Sheet ---
     ws_preallocated = wb.create_sheet("preallocated")
@@ -45,11 +56,43 @@ def generate_template_excel():
     output.seek(0)
     return output
 
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Sidebar / Upload
+# ═══════════════════════════════════════════════════════
+
+# --- User Guide at top of sidebar ---
+with st.sidebar.expander("📘 User Guide", expanded=False):
+    st.markdown("""
+    **How to Use This App**
+
+    1. **Prepare Your Data**  
+       - Use the provided template to format your input.  
+       - Required sheets: `students`, `projects`, `supervisors`, and `preallocated`.
+
+    2. **Upload Your Data**  
+       - Upload a single Excel file with all sheets,  
+         *or* upload the individual CSV files.
+
+    3. **Check for Errors**  
+       - Validation results will appear after upload.  
+       - Fix any issues before proceeding.
+
+    4. **Run Matching Algorithms**  
+       - Algorithms: Greedy, Stable Marriage, and Linear Programming.
+
+    5. **View and Download Results**  
+       - Explore match quality, supervisor load, and satisfaction.  
+       - Download results as Excel.
+
+    Need an example? Use **“Generate Input Template”** below.
+    """)
+
 # --- File Upload ---
+st.sidebar.markdown("---")
 st.sidebar.header("Upload Input Data")
 
 # --- Template Download Button ---
-st.sidebar.markdown("---")
 st.sidebar.markdown("Need sample input files?")
 if st.sidebar.button("Generate Input Template"):
     template = generate_template_excel()
@@ -70,6 +113,10 @@ projects_file = st.sidebar.file_uploader("projects.csv", type="csv")
 supervisors_file = st.sidebar.file_uploader("supervisors.csv", type="csv")
 preallocated_file = st.sidebar.file_uploader("preallocated.csv", type="csv")
 
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Data Loading
+# ═══════════════════════════════════════════════════════
 
 data_loaded = False
 
@@ -99,12 +146,28 @@ elif all([students_file, projects_file, supervisors_file, preallocated_file]):
 else:
     st.info("⬅️ Please upload either a single Excel file or all four required CSV files to begin.")
 
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Data Validation
+# ═══════════════════════════════════════════════════════
+
 # --- Only run logic if data loaded ---
 if data_loaded:
 
     # --- Coerce numeric columns before validation ---
     projects_df['max_students'] = pd.to_numeric(projects_df['max_students'], errors='coerce')
     supervisors_df['capacity'] = pd.to_numeric(supervisors_df['capacity'], errors='coerce')
+
+    # --- Capacities ---
+    supervisor_capacity = {
+        row['supervisor_id']: int(row['capacity']) if pd.notna(row['capacity']) else 3
+        for _, row in supervisors_df.iterrows()
+    }
+
+    project_capacity = {
+        row['project_id']: int(row['max_students']) if pd.notna(row['max_students']) else None
+        for _, row in projects_df.iterrows()
+    }
 
     # --- Data Validation ---
     def validate_student_data(students_df, projects_df):
@@ -172,6 +235,7 @@ if data_loaded:
     def validate_supervisor_data(supervisors_df):
         errors = []
         required_columns = {'supervisor_id', 'supervisor_name', 'capacity'}
+        optional_columns = {'supervisor_email'}
         missing_columns = required_columns - set(supervisors_df.columns)
         if missing_columns:
             errors.append(f"Missing required columns in supervisors sheet: {list(missing_columns)}")
@@ -190,19 +254,6 @@ if data_loaded:
             errors.append(f"Negative capacity values for supervisor IDs: {invalid_ids}")
 
         return errors
-
-
-
-    # --- Capacities ---
-    supervisor_capacity = {
-        row['supervisor_id']: int(row['capacity']) if pd.notna(row['capacity']) else 3
-        for _, row in supervisors_df.iterrows()
-    }
-
-    project_capacity = {
-        row['project_id']: int(row['max_students']) if pd.notna(row['max_students']) else None
-        for _, row in projects_df.iterrows()
-    }
 
     # Run all validation checks
     project_errors = validate_project_data(projects_df)
@@ -231,6 +282,11 @@ if data_loaded:
         st.write(diversity_warnings)
 
     st.success("Data validation passed!")
+
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Matching Algorithms
+# ═══════════════════════════════════════════════════════
 
     # --- Matching Algorithms ---
     def greedy_matching(students_df, projects_df, supervisor_capacity, project_capacity, preallocated_df):
@@ -333,7 +389,97 @@ if data_loaded:
         lp = linear_programming_matching(students_df, projects_df, supervisor_capacity, project_capacity, preallocated_df)
 
     st.success("Matching complete!")
+
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Excel Export
+# ═══════════════════════════════════════════════════════
+
+    # --- Downloads ---
+    def export_excel(allocations):
+        from openpyxl import Workbook
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        from io import BytesIO
+
+        output = BytesIO()
+        wb = Workbook()
+
+        # Mapping for quick lookup
+        project_lookup = projects_df.set_index('project_id')[['project_title', 'supervisor_id']].to_dict('index')
+        supervisor_lookup = supervisors_df.set_index('supervisor_id')['supervisor_name'].to_dict()
+        supervisor_email_lookup = supervisors_df.set_index('supervisor_id')['supervisor_email'].to_dict()
+
+        for name, alloc in allocations.items():
+            ws = wb.create_sheet(title=name)
+            data = []
+
+            for _, row in students_df.iterrows():
+                sid = row['student_id']
+                sname = row['student_name']
+                assigned_pid = alloc.get(sid, None)
+
+                # Determine choice rank
+                if assigned_pid == row['choice_1']:
+                    choice_rank = "1st"
+                elif assigned_pid == row['choice_2']:
+                    choice_rank = "2nd"
+                elif assigned_pid == row['choice_3']:
+                    choice_rank = "3rd"
+                elif assigned_pid is not None:
+                    choice_rank = "Outside Top 3"
+                else:
+                    choice_rank = "Unassigned"
+
+                if assigned_pid:
+                    project_info = project_lookup.get(assigned_pid, {})
+                    project_name = project_info.get('project_title', 'Unknown')
+                    supervisor_id = project_info.get('supervisor_id', 'Unknown')
+                    supervisor_name = supervisor_lookup.get(supervisor_id, 'Unknown')
+                else:
+                    assigned_pid = 'UNASSIGNED'
+                    project_name = ''
+                    supervisor_name = ''
+                    supervisor_id = None
+
+                supervisor_email = supervisor_email_lookup.get(supervisor_id, 'Unknown')
+
+                data.append({
+                    "student_id": sid,
+                    "student_name": sname,
+                    "assigned_project_id": assigned_pid,
+                    "assigned_project_name": project_name,
+                    "supervisor_name": supervisor_name,
+                    "supervisor_email": supervisor_email,
+                    "assigned_choice": choice_rank
+                })
+
+            df = pd.DataFrame(data)
+            for r in dataframe_to_rows(df, index=False, header=True):
+                ws.append(r)
+
+        # Remove default sheet if exists
+        if "Sheet" in wb.sheetnames:
+            del wb["Sheet"]
+
+        wb.save(output)
+        output.seek(0)
+        return output
+
+    excel_data = export_excel({
+        "Greedy": greedy,
+        "Stable Marriage": stable,
+        "Linear Programming": lp
+    })
+
+    st.download_button("Download Excel Results", data=excel_data, file_name="matchings.xlsx")
+
+    
     st.subheader("Match Summary")
+
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Summary + Analysis
+# ═══════════════════════════════════════════════════════
 
     # --- Results Overview ---
     def summarize(allocation, method):
@@ -400,7 +546,9 @@ if data_loaded:
                 distribution['other'] += 1
 
         st.markdown("**Choice Preference Distribution:**")
-        st.dataframe(pd.DataFrame(distribution.items(), columns=["Choice", "Count"]))
+        choice_df = pd.DataFrame.from_dict(distribution, orient="index", columns=["Count"])
+        choice_df.index.name = "Choice"
+        st.dataframe(choice_df)
 
         # 2. Supervisor load distribution
         proj_to_sup = projects_df.set_index('project_id')['supervisor_id'].to_dict()
@@ -409,11 +557,20 @@ if data_loaded:
             sup = proj_to_sup.get(pid)
             if sup is not None:
                 supervisor_load[sup] += 1
-
-        loads = np.array(list(supervisor_load.values()))
+        # Map supervisor_id to name
+        supervisor_name_lookup = supervisors_df.set_index('supervisor_id')['supervisor_name'].to_dict()
+        # Reformat dictionary to use supervisor names as keys
+        supervisor_named_load = {
+            supervisor_name_lookup.get(sup_id, sup_id): load
+            for sup_id, load in supervisor_load.items()
+        }
+        loads = np.array(list(supervisor_named_load.values()))
         st.markdown("**Supervisor Load Distribution:**")
         st.write(f"Min load: {loads.min()} | Max load: {loads.max()} | Mean: {loads.mean():.2f} | Std Dev: {loads.std():.2f}")
-        sup_load_df = pd.DataFrame.from_dict(supervisor_load, orient='index', columns=['Students Assigned'])
+        # Create DataFrame with supervisor names as index
+        sup_load_df = pd.DataFrame.from_dict(supervisor_named_load, orient='index', columns=['Students Assigned'])
+        sup_load_df.index.name = "Supervisor Name"
+        sup_load_df = sup_load_df.sort_values(by="Students Assigned", ascending=False)
         st.dataframe(sup_load_df)
 
         # 3. Students assigned outside choices
@@ -427,16 +584,25 @@ if data_loaded:
         st.markdown("**Assigned Outside Top 3 Choices:**")
         st.write(f"{len(outside)} student(s) assigned outside their top 3.")
         if outside:
-            st.dataframe(pd.DataFrame(outside, columns=["Student ID"]))
+            outside_df = pd.DataFrame(outside, columns=["Student ID"])
+            st.dataframe(outside_df, use_container_width=True)
 
         # 4. Project utilization
         usage = {pid: 0 for pid in projects_df['project_id']}
         for pid in allocation.values():
-            usage[pid] = usage.get(pid, 0) + 1
-
+            if pid in usage:
+                usage[pid] += 1
+        # Map project_id to project_title
+        project_name_lookup = projects_df.set_index('project_id')['project_title'].to_dict()
+        # Replace project_id keys with project names
+        usage_named = {
+            project_name_lookup.get(pid, pid): count
+            for pid, count in usage.items()
+        }
         st.markdown("**Project Utilization:**")
-        usage_df = pd.DataFrame.from_dict(usage, orient='index', columns=["Assigned Count"])
-        usage_df.index.name = "Project ID"
+        usage_df = pd.DataFrame.from_dict(usage_named, orient='index', columns=["Assigned Count"])
+        usage_df.index.name = "Project Title"
+        usage_df = usage_df.sort_values(by="Assigned Count", ascending=False)
         st.dataframe(usage_df)
 
     st.subheader("Analysis")
@@ -446,6 +612,11 @@ if data_loaded:
         analyze_match_quality(stable, students_df, projects_df, supervisors_df, "Stable Marriage")
     with st.expander("View Linear Programming Analysis"):
         analyze_match_quality(lp, students_df, projects_df, supervisors_df, "Linear Programming")
+
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Satisfaction Charts
+# ═══════════════════════════════════════════════════════
 
     # --- Satisfaction Analysis ---
     def compute_satisfaction_scores(allocation, students_df, method_name="Method"):
@@ -494,6 +665,11 @@ if data_loaded:
     with st.expander("Satisfaction – Linear Programming"):
         compute_satisfaction_scores(lp, students_df, "Linear Programming")
 
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Supervisor Load
+# ═══════════════════════════════════════════════════════
+
     # --- Supervisor Load Analysis ---
     def analyze_supervisor_load(allocation, projects_df, supervisors_df, method_name="Method"):
         st.subheader(f"Supervisor Load Analysis – {method_name}")
@@ -541,6 +717,11 @@ if data_loaded:
     with st.expander("Linear Programming – Supervisor Load"):
         analyze_supervisor_load(lp, projects_df, supervisors_df, "Linear Programming")
 
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Project Popularity
+# ═══════════════════════════════════════════════════════
+
     # --- Project Popularity Analysis ---
     def analyze_project_popularity_and_utilization(students_df, projects_df, allocation, method_name="Method"):
         st.subheader(f"Project Popularity & Utilization – {method_name}")
@@ -560,6 +741,7 @@ if data_loaded:
                 utilization[pid] += 1
 
         # Build final table
+        project_id_to_title = projects_df.set_index("project_id")["project_title"].to_dict()
         data = []
         for pid in projects_df['project_id']:
             requested = popularity.get(pid, 0)
@@ -577,13 +759,15 @@ if data_loaded:
                 status = "MATCHED"
 
             data.append({
-                "Project ID": pid,
+                "Project Title": project_id_to_title.get(pid, "Unknown"),
                 "Requested": requested,
                 "Assigned": assigned,
                 "Status": status
             })
 
         df = pd.DataFrame(data)
+        df = df.sort_values(by="Assigned", ascending=False)
+        df.set_index("Project Title", inplace=True)
         st.dataframe(df, use_container_width=True)
 
     st.subheader("Project Popularity & Utilization")
@@ -595,82 +779,4 @@ if data_loaded:
         analyze_project_popularity_and_utilization(students_df, projects_df, lp, "Linear Programming")
 
 
-    # --- Downloads ---
-    from tempfile import NamedTemporaryFile
-    from openpyxl import Workbook
-
-    def export_excel(allocations):
-        from openpyxl import Workbook
-        from openpyxl.utils.dataframe import dataframe_to_rows
-        from io import BytesIO
-
-        output = BytesIO()
-        wb = Workbook()
-
-        # Mapping for quick lookup
-        project_lookup = projects_df.set_index('project_id')[['project_title', 'supervisor_id']].to_dict('index')
-        supervisor_lookup = supervisors_df.set_index('supervisor_id')['supervisor_name'].to_dict()
-
-        for name, alloc in allocations.items():
-            ws = wb.create_sheet(title=name)
-            data = []
-
-            for _, row in students_df.iterrows():
-                sid = row['student_id']
-                sname = row['student_name']
-                assigned_pid = alloc.get(sid, None)
-
-                # Determine choice rank
-                if assigned_pid == row['choice_1']:
-                    choice_rank = "1st"
-                elif assigned_pid == row['choice_2']:
-                    choice_rank = "2nd"
-                elif assigned_pid == row['choice_3']:
-                    choice_rank = "3rd"
-                elif assigned_pid is not None:
-                    choice_rank = "Outside Top 3"
-                else:
-                    choice_rank = "Unassigned"
-
-                if assigned_pid:
-                    project_info = project_lookup.get(assigned_pid, {})
-                    project_name = project_info.get('project_title', 'Unknown')
-                    supervisor_id = project_info.get('supervisor_id', 'Unknown')
-                    supervisor_name = supervisor_lookup.get(supervisor_id, 'Unknown')
-                else:
-                    assigned_pid = 'UNASSIGNED'
-                    project_name = ''
-                    supervisor_name = ''
-
-                data.append({
-                    "student_id": sid,
-                    "student_name": sname,
-                    "assigned_project_id": assigned_pid,
-                    "assigned_project_name": project_name,
-                    "supervisor_name": supervisor_name,
-                    "assigned_choice": choice_rank
-                })
-
-            df = pd.DataFrame(data)
-            for r in dataframe_to_rows(df, index=False, header=True):
-                ws.append(r)
-
-        # Remove default sheet if exists
-        if "Sheet" in wb.sheetnames:
-            del wb["Sheet"]
-
-        wb.save(output)
-        output.seek(0)
-        return output
-
-    excel_data = export_excel({
-        "Greedy": greedy,
-        "Stable Marriage": stable,
-        "Linear Programming": lp
-    })
-
-    st.download_button("Download Excel Results", data=excel_data, file_name="matchings.xlsx")
-
-# else:
-    # st.info("Please upload all required CSV files to begin.")
 
