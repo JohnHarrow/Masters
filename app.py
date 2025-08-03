@@ -1,4 +1,4 @@
-# python -m streamlit run app.py
+# Terminal: python -m streamlit run app.py
 
 # ═══════════════════════════════════════════════════════
 # SECTION: App Configuration
