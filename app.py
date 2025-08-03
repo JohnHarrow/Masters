@@ -1,4 +1,4 @@
-# python -m streamlit run app.py
+# Terminal: python -m streamlit run app.py
 
 # ═══════════════════════════════════════════════════════
 # SECTION: App Configuration
@@ -800,7 +800,7 @@ if data_loaded:
     st.subheader("Satisfaction")
 
     # Brief explanation of the scoring system
-    st.markdown("ℹ️ **Definition:** Each student is awarded **3 points** if matched to their 1st choice, "
+    st.markdown("**Definition:** Each student is awarded **3 points** if matched to their 1st choice, "
                 "**2 points** for 2nd choice, **1 point** for 3rd choice, and **0 points** otherwise.")
     
     # Allow the user to expand/collapse each algorithm's satisfaction analysis
@@ -955,7 +955,7 @@ if data_loaded:
 # SECTION: Combined Algorithm Comparison (Charts)
 # ═══════════════════════════════════════════════════════
 
-    st.subheader("🔎 Combined Comparison of Algorithms")
+    st.subheader("Combined Comparison of Algorithms")
 
     # --- Helper functions ---
     def get_choice_percentages(allocation):
