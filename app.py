@@ -88,6 +88,13 @@ with st.sidebar.expander("📘 User Guide", expanded=False):
     Need an example? Use **“Generate Input Template”** below.
     """)
 
+# --- Default Capacity Settings ---
+st.sidebar.subheader("Default Capacity Settings")
+default_supervisor_capacity = st.sidebar.number_input("Default supervisor capacity", min_value=1, value=3, step=1)
+default_project_capacity = st.sidebar.number_input("Default project capacity", min_value=1, value=1, step=1)
+
+
+
 # --- File Upload ---
 st.sidebar.markdown("---")
 st.sidebar.header("Upload Input Data")
@@ -160,12 +167,12 @@ if data_loaded:
 
     # --- Capacities ---
     supervisor_capacity = {
-        row['supervisor_id']: int(row['capacity']) if pd.notna(row['capacity']) else 3
+        row['supervisor_id']: int(row['capacity']) if pd.notna(row['capacity']) else default_supervisor_capacity
         for _, row in supervisors_df.iterrows()
     }
 
     project_capacity = {
-        row['project_id']: int(row['max_students']) if pd.notna(row['max_students']) else None
+        row['project_id']: int(row['max_students']) if pd.notna(row['max_students']) else default_project_capacity
         for _, row in projects_df.iterrows()
     }
 
@@ -282,6 +289,26 @@ if data_loaded:
         st.write(diversity_warnings)
 
     st.success("Data validation passed!")
+
+
+# ═══════════════════════════════════════════════════════
+# SECTION: Capacity Check
+# ═══════════════════════════════════════════════════════
+    total_supervisor_capacity = supervisors_df['capacity'].fillna(default_supervisor_capacity).sum()
+    total_project_capacity = projects_df['max_students'].fillna(default_project_capacity).sum()
+    num_students = len(students_df)
+
+    if total_supervisor_capacity < num_students:
+        st.warning(f"⚠️ Total supervisor capacity ({int(total_supervisor_capacity)}) "
+                f"is less than the number of students ({num_students}). "
+                "Some students cannot be allocated.")
+    elif total_project_capacity < num_students:
+        st.warning(f"⚠️ Total project capacity ({int(total_project_capacity)}) "
+                f"is less than the number of students ({num_students}). "
+                "Some students cannot be allocated.")
+    else:
+        st.info("✅ Capacity check passed: there should be enough space for all students.")
+
 
 
 # ═══════════════════════════════════════════════════════
@@ -658,6 +685,8 @@ if data_loaded:
         st.pyplot(fig)
 
     st.subheader("Satisfaction")
+    st.markdown("ℹ️ **Definition:** Each student is awarded **3 points** if matched to their 1st choice, "
+                "**2 points** for 2nd choice, **1 point** for 3rd choice, and **0 points** otherwise.")
     with st.expander("Satisfaction – Greedy Matching"):
         compute_satisfaction_scores(greedy, students_df, "Greedy Matching")
     with st.expander("Satisfaction – Stable Marriage"):
