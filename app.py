@@ -808,4 +808,77 @@ if data_loaded:
         analyze_project_popularity_and_utilization(students_df, projects_df, lp, "Linear Programming")
 
 
+# ═══════════════════════════════════════════════════════
+# SECTION: Combined Algorithm Comparison (Charts)
+# ═══════════════════════════════════════════════════════
+
+    st.subheader("🔎 Combined Comparison of Algorithms")
+
+    # --- Helper functions ---
+    def get_choice_percentages(allocation):
+        total_students = len(students_df)
+        counts = {"1st": 0, "2nd": 0, "3rd": 0, "Unmatched": 0}
+        for _, row in students_df.iterrows():
+            pid = allocation.get(row['student_id'])
+            if pid == row['choice_1']:
+                counts["1st"] += 1
+            elif pid == row['choice_2']:
+                counts["2nd"] += 1
+            elif pid == row['choice_3']:
+                counts["3rd"] += 1
+            else:
+                counts["Unmatched"] += 1
+        # Convert to percentages
+        return {k: (v / total_students) * 100 for k, v in counts.items()}
+
+    def avg_satisfaction(allocation):
+        scores = []
+        for _, row in students_df.iterrows():
+            pid = allocation.get(row['student_id'])
+            if pid == row['choice_1']:
+                scores.append(3)
+            elif pid == row['choice_2']:
+                scores.append(2)
+            elif pid == row['choice_3']:
+                scores.append(1)
+            else:
+                scores.append(0)
+        return np.mean(scores)
+
+    # --- Prepare data for charts ---
+    choice_data = {
+        "Greedy": get_choice_percentages(greedy),
+        "Stable Marriage": get_choice_percentages(stable),
+        "Linear Programming": get_choice_percentages(lp)
+    }
+    choice_df = pd.DataFrame(choice_data).T
+
+    satisfaction_data = {
+        "Greedy": avg_satisfaction(greedy),
+        "Stable Marriage": avg_satisfaction(stable),
+        "Linear Programming": avg_satisfaction(lp)
+    }
+
+    # --- Stacked Bar Chart: Choice Distribution (Percentages) ---
+    with st.expander("Choice Distribution Comparison Across Algorithms"):
+        fig1, ax1 = plt.subplots(figsize=(8, 5))
+        choice_df.plot(kind='bar', stacked=True, ax=ax1)
+        ax1.set_title("Choice Distribution (%) by Algorithm")
+        ax1.set_xlabel("Algorithm")
+        ax1.set_ylabel("Percentage of Students (%)")
+        ax1.legend(title="Choice Level")
+        st.pyplot(fig1)
+
+    # --- Grouped Bar Chart: Satisfaction Scores ---
+    with st.expander("Average Satisfaction Score Comparison"):
+        fig2, ax2 = plt.subplots(figsize=(6, 4))
+        ax2.bar(satisfaction_data.keys(), satisfaction_data.values(),
+                color=['#1f77b4', '#ff7f0e', '#2ca02c'])
+        ax2.set_title("Average Satisfaction Score Comparison")
+        ax2.set_ylabel("Average Score (0-3)")
+        ax2.set_ylim(0, 3)
+        st.pyplot(fig2)
+
+
+
 
