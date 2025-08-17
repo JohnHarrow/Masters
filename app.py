@@ -1,6 +1,38 @@
 # Terminal: python -m streamlit run app.py
 
 # ═══════════════════════════════════════════════════════
+# SECTION: Links To Resources Used For Learning
+# ═══════════════════════════════════════════════════════
+
+# Streamlit Docs: https://docs.streamlit.io/library
+# Streamlit Tutorial: https://docs.streamlit.io/get-started/tutorials/create-an-app
+# Download Button: https://docs.streamlit.io/library/api-reference/widgets/st.download_button
+# Upload Button: https://docs.streamlit.io/library/api-reference/widgets/st.file_uploader
+# Sidebar: https://docs.streamlit.io/library/api-reference/layout/st.sidebar
+# Expander: https://docs.streamlit.io/library/api-reference/layout/st.expander
+# Markdown: https://docs.streamlit.io/library/api-reference/text/st.markdown
+
+# Pandas: https://pandas.pydata.org/docs/
+# NumPy: https://numpy.org/doc/stable/user/quickstart.html
+# Openpyxl: https://openpyxl.readthedocs.io/en/stable/
+# Pandas To Excel: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_excel.html
+# BitesIO: https://docs.python.org/3/library/io.html#io.BytesIO
+
+# Greedy Algorithm: https://www.geeksforgeeks.org/greedy-algorithms/
+# Stable Marriage Algorithm: https://www.geeksforgeeks.org/stable-marriage-problem/
+# Linear Programming With PuLP: https://coin-or.github.io/pulp/CaseStudies/a_blending_problem.html
+
+# Pandas Validation: https://pandas.pydata.org/docs/user_guide/missing_data.html
+# Pandas Validation: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.duplicated.html
+# Python Error Handling: https://docs.python.org/3/tutorial/errors.html
+
+# Matplotlib: https://matplotlib.org/stable/users/getting_started/
+# Streamlit With Matplotlib: https://docs.streamlit.io/library/api-reference/charts/st.pyplot
+
+# Temp Files: https://docs.python.org/3/library/tempfile.html
+
+
+# ═══════════════════════════════════════════════════════
 # SECTION: App Configuration
 # ═══════════════════════════════════════════════════════
 
@@ -1026,7 +1058,6 @@ if data_loaded:
         ax2.set_ylabel("Average Score (0-3)")
         ax2.set_ylim(0, 3)
         st.pyplot(fig2)
-
 
 
 
