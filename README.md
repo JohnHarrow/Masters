@@ -66,3 +66,10 @@ These approaches allow the user to compare fairness, satisfaction, and allocatio
 3. Select and run one of the allocation algorithms.
 4. View allocation results through summary tables and visualisations.
 5. Export the allocation results as an Excel file.
+
+---
+
+## Screenshots
+
+### Application Interface
+![Application Interface](MainUI.png)
